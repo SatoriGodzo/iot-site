@@ -17,7 +17,7 @@
 
     <label>Устройство:</label>
     <select id="deviceSelect">
-        <option value="1">Raspberry Pi 1</option>
+        <option value="myRasp">Raspberry Pi 1</option>
     </select>
 
     <label>С:</label>
@@ -71,8 +71,8 @@ async function loadDeviceData() {
     const deviceId = deviceSelect.value;
     const type = sensorType.value;
 
-    const t_from = new Date(dateFrom.value).toISOString();
-    const t_to = new Date(dateTo.value).toISOString();
+    const t_from = new Date(dateFrom.value).toISOString().split('.')[0] + 'Z';
+    const t_to = new Date(dateTo.value).toISOString().split('.')[0] + 'Z';
 
     try {
         const res = await fetch(`${API_URL}?deviceId=${deviceId}&from=${t_from}&to=${t_to}&type=${type}`, {

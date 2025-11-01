@@ -7,7 +7,7 @@ app = Flask(__name__)
 
 # Фейковые устройства
 DEVICES = [
-    {"id": 1, "name": "Raspberry Pi 1"}
+    {"id": "myRasp", "name": "Raspberry Pi 1"}
 ]
 
 # Фейковые сенсорные данные для теста
@@ -31,8 +31,8 @@ def get_sensors(device_id):
     mtype = request.args.get("type", "temperature")
 
     try:
-        from_dt = datetime.fromisoformat(t_from.replace("Z", "+00:00"))
-        to_dt = datetime.fromisoformat(t_to.replace("Z", "+00:00"))
+        from_dt = datetime.fromisoformat(t_from.replace("Z", "+00:00").split('.')[0])
+        to_dt = datetime.fromisoformat(t_to.replace("Z", "+00:00").split('.')[0])
     except:
         from_dt = datetime.utcnow() - timedelta(days=1)
         to_dt = datetime.utcnow()
