@@ -24,6 +24,7 @@ for i in range(100):
 def index():
     return render_template("index.html", devices=DEVICES)
 
+
 @app.route("/device/<int:device_id>/sensors")
 def get_sensors(device_id):
     t_from = request.args.get("from")
