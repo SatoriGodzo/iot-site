@@ -33,6 +33,12 @@
         <option value="eyes">Eyes</option>
     </select>
 
+    <label>Вид данных:</label>
+    <select id="dataType">
+        <option value="0">Все данные</option>
+        <option value="1">Среднечасовые</option>
+    </select>
+
     <button id="loadData">Загрузить</button>
     <button id="downloadCsv">Скачать CSV</button>
 
@@ -44,6 +50,8 @@
 
 <script>
 const API_URL = "https://trigger-bhd7ceefhaa7d6gx.northeurope-01.azurewebsites.net/api/measurements";
+
+const API_URL_HOURLY = "https://trigger-bhd7ceefhaa7d6gx.northeurope-01.azurewebsites.net/api/measurements_hourly";
 const API_KEY = "test12345"; // если нужен x-api-key
 
 const deviceSelect = document.getElementById('deviceSelect');
@@ -54,6 +62,7 @@ const loadBtn = document.getElementById('loadData');
 const dateFrom = document.getElementById('dateFrom');
 const dateTo = document.getElementById('dateTo');
 const sensorType = document.getElementById('sensorType');
+const dataType = document.getElementById('dataType');
 
 let chart;
 
@@ -83,12 +92,14 @@ dateTo.value = toLocalInputFormat(now);
 async function loadDeviceData() {
     const deviceId = deviceSelect.value;
     const type = sensorType.value;
+    const dType = dataType.value;
+    const api = dType === "1" ? API_URL_HOURLY : API_URL;
 
     const t_from = new Date(dateFrom.value).toISOString().split('.')[0] + 'Z';
     const t_to = new Date(dateTo.value).toISOString().split('.')[0] + 'Z';
 
     try {
-        const res = await fetch(`${API_URL}?deviceId=${deviceId}&from=${t_from}&to=${t_to}&type=${type}`, {
+        const res = await fetch(`${api}?deviceId=${deviceId}&from=${t_from}&to=${t_to}&type=${type}`, {
             headers: { "x-api-key": API_KEY }
         });
         const data = await res.json();
@@ -96,10 +107,11 @@ async function loadDeviceData() {
         if (!data.items) return;
 
         // Сортировка по timestamp
+        // у меня была сортировка по времени уже в запросе (ORDER BY) так что не обязательно
         const items = data.items.sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
 
         const labels = items.map(d => d.timestamp);
-        const values = items.map(d => d.val ?? d.value ?? d.motion ?? 0);
+        const values = items.map(d => d.val ?? d.value ?? d.motion ?? d.avg_value ?? d.avg_motion ?? d.avg_eye_1 ?? d.avg_eye_2 ?? 0);
 
         if (chart) chart.destroy();
 
@@ -122,18 +134,18 @@ async function loadDeviceData() {
         });
 
         // Alerts: покажем температуры > 28 или < 19
-        alertsList.innerHTML = '';
-        items.forEach(item => {
-            if (type === "temperature" && (item.val > 28 || item.val < 19)) {
-                const li = document.createElement('li');
-                li.textContent = `${item.timestamp}: Temperature alert ${item.val}°C`;
-                alertsList.appendChild(li);
-            }
-        });
+        //alertsList.innerHTML = '';
+        //items.forEach(item => {
+        //    if (type === "temperature" && (item.val > 28 || item.val < 19)) {
+        //        const li = document.createElement('li');
+        //        li.textContent = `${item.timestamp}: Temperature alert ${item.val}°C`;
+        //        alertsList.appendChild(li);
+        //    }
+        //});
 
         // CSV
         downloadBtn.onclick = () => {
-            const csv = ["timestamp,value"].concat(items.map(d => `${d.timestamp},${d.val ?? d.value ?? d.motion ?? 0}`)).join("\n");
+            const csv = ["timestamp,value"].concat(items.map(d => `${d.timestamp},${d.val ?? d.value ?? d.motion ?? d.avg_value ?? d.avg_motion ?? d.avg_eye_1 ?? d.avg_eye_2 ?? 0}`)).join("\n");
             const blob = new Blob([csv], {type: "text/csv"});
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
