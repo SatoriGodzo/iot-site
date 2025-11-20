@@ -1,158 +1,425 @@
 <!DOCTYPE html>
+
 <html lang="ru">
+
 <head>
+
     <meta charset="UTF-8">
+
     <title>IoT Dashboard</title>
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
     <style>
+
+        /* ... стили) ... */
+
         body { font-family: Arial, sans-serif; padding: 20px; }
+
         label { margin-right: 10px; }
+
         select, input { margin-right: 20px; }
+
         canvas { margin-top: 20px; max-width: 100%; height: 400px; }
+
         #alerts { margin-top: 20px; }
+
     </style>
+
 </head>
+
 <body>
+
     <h1>IoT Dashboard</h1>
 
-    <label>Устройство:</label>
+
+
+    <label>IOT Laite:</label>
+
     <select id="deviceSelect">
+
         <option value="myRasp">Raspberry Pi 1</option>
+
     </select>
 
-    <label>С:</label>
+
+
+    <label>alku:</label>
+
     <input type="datetime-local" id="dateFrom">
 
-    <label>По:</label>
+
+
+    <label>loppu:</label>
+
     <input type="datetime-local" id="dateTo">
 
-    <label>Тип сенсора:</label>
+
+
+    <label>Sensorin tyyppi:</label>
+
     <select id="sensorType">
+
         <option value="temperature">Temperature</option>
+
         <option value="motion">Motion</option>
+
         <option value="eyes">Eyes</option>
+
     </select>
 
-    <button id="loadData">Загрузить</button>
-    <button id="downloadCsv">Скачать CSV</button>
 
-    <h2>График сенсоров</h2>
+
+    <label>Data:</label>
+
+    <select id="dataType">
+
+        <option value="0">Kaikki</option>
+
+        <option value="1">Tuntikeskiarvo</option>
+
+    </select>
+
+
+
+    <button id="loadData">Näytä</button>
+
+    <button id="downloadCsv">Lataa CSV</button>
+
+
+
+    <h2>Graafi</h2>
+
     <canvas id="chart"></canvas>
 
+
+
     <h2>Alerts</h2>
+
     <ul id="alerts"></ul>
 
+
+
 <script>
+
+// --- КОНФИГУРАЦИЯ API ---
+
 const API_URL = "https://trigger-bhd7ceefhaa7d6gx.northeurope-01.azurewebsites.net/api/measurements";
-const API_KEY = "test12345"; // если нужен x-api-key
+
+const API_URL_HOURLY = "https://trigger-bhd7ceefhaa7d6gx.northeurope-01.azurewebsites.net/api/measurements_hourly";
+
+
+
+// Новый URL для алертов, который вы предоставили
+
+const API_URL_ALERTS = "https://trigger-bhd7ceefhaa7d6gx.northeurope-01.azurewebsites.net/api/get_alerts"; 
+
+
+
+const API_KEY = "test12345"; // Ваш существующий ключ API
+
+// --- КОНЕЦ КОНФИГУРАЦИИ ---
+
+
 
 const deviceSelect = document.getElementById('deviceSelect');
+
 const chartCanvas = document.getElementById('chart').getContext('2d');
+
 const alertsList = document.getElementById('alerts');
+
 const downloadBtn = document.getElementById('downloadCsv');
+
 const loadBtn = document.getElementById('loadData');
+
 const dateFrom = document.getElementById('dateFrom');
+
 const dateTo = document.getElementById('dateTo');
+
 const sensorType = document.getElementById('sensorType');
+
+const dataType = document.getElementById('dataType');
+
+
 
 let chart;
 
+
+
 function formatDateToISOLocal(dt) {
+
     return dt.toISOString().slice(0,16);
+
 }
+
 
 
 // Устанавливаем даты по локальному времени пользователя (последние 24 часа)
+
 const now = new Date();
+
 const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
+
+
 function toLocalInputFormat(date) {
-    // Получаем локальное время в формате, подходящем для input[type=datetime-local]
+
     const year = date.getFullYear();
+
     const month = String(date.getMonth() + 1).padStart(2, '0');
+
     const day = String(date.getDate()).padStart(2, '0');
+
     const hours = String(date.getHours()).padStart(2, '0');
+
     const minutes = String(date.getMinutes()).padStart(2, '0');
+
     return `${year}-${month}-${day}T${hours}:${minutes}`;
+
 }
 
+
+
 dateFrom.value = toLocalInputFormat(yesterday);
+
 dateTo.value = toLocalInputFormat(now);
 
 
-async function loadDeviceData() {
-    const deviceId = deviceSelect.value;
-    const type = sensorType.value;
 
-    const t_from = new Date(dateFrom.value).toISOString().split('.')[0] + 'Z';
-    const t_to = new Date(dateTo.value).toISOString().split('.')[0] + 'Z';
+
+
+/**
+
+ * Новая функция для загрузки алертов из Azure Function
+
+ */
+
+async function loadAlerts(deviceId) {
+
+    alertsList.innerHTML = '<li>Загрузка предупреждений...</li>';
+
+    
 
     try {
-        const res = await fetch(`${API_URL}?deviceId=${deviceId}&from=${t_from}&to=${t_to}&type=${type}`, {
-            headers: { "x-api-key": API_KEY }
+
+        const res = await fetch(`${API_URL_ALERTS}?deviceId=${deviceId}`, {
+
+            headers: { "x-api-key": API_KEY } // Используем API ключ
+
         });
+
+        
+
         const data = await res.json();
 
-        if (!data.items) return;
+        
 
-        // Сортировка по timestamp
-        const items = data.items.sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
+        // Azure Function, вероятно, возвращает список объектов напрямую или в поле 'items'
 
-        const labels = items.map(d => d.timestamp);
-        const values = items.map(d => d.val ?? d.value ?? d.motion ?? 0);
+        const alerts = data.items || data; 
 
-        if (chart) chart.destroy();
+        
 
-        chart = new Chart(chartCanvas, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: type,
-                    data: values,
-                    borderColor: 'rgb(75, 192, 192)',
-                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                    tension: 0.2,
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: { x: { display: true }, y: { beginAtZero: true } }
-            }
-        });
+        alertsList.innerHTML = ''; // Очистка списка
 
-        // Alerts: покажем температуры > 28 или < 19
-        alertsList.innerHTML = '';
-        items.forEach(item => {
-            if (type === "temperature" && (item.val > 28 || item.val < 19)) {
-                const li = document.createElement('li');
-                li.textContent = `${item.timestamp}: Temperature alert ${item.val}°C`;
-                alertsList.appendChild(li);
-            }
-        });
+        
 
-        // CSV
-        downloadBtn.onclick = () => {
-            const csv = ["timestamp,value"].concat(items.map(d => `${d.timestamp},${d.val ?? d.value ?? d.motion ?? 0}`)).join("\n");
-            const blob = new Blob([csv], {type: "text/csv"});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `device_${deviceId}_${type}.csv`;
-            a.click();
+        if (!alerts || alerts.length === 0) {
+
+            alertsList.innerHTML = '<li>Нет активных предупреждений.</li>';
+
+            return;
+
         }
 
+
+
+        // Отображение алертов
+
+        alerts.forEach(alert => {
+
+            const li = document.createElement('li');
+
+            // Предполагаем, что функция возвращает поля timestamp и message
+
+            li.textContent = `${alert.timestamp || new Date().toISOString()}: ${alert.message || 'Alert message missing'}`;
+
+            alertsList.appendChild(li);
+
+        });
+
+
+
     } catch(err) {
-        console.error(err);
-        alert("Ошибка загрузки данных");
+
+        console.error("Ошибка загрузки алертов:", err);
+
+        alertsList.innerHTML = '<li>Ошибка загрузки предупреждений.</li>';
+
     }
+
 }
 
+
+
+
+
+/**
+
+ * Основная функция для загрузки данных (графика)
+
+ */
+
+async function loadDeviceData() {
+
+    const deviceId = deviceSelect.value;
+
+    const type = sensorType.value;
+
+    const dType = dataType.value;
+
+    const api = dType === "1" ? API_URL_HOURLY : API_URL;
+
+
+
+    const t_from = new Date(dateFrom.value).toISOString().split('.')[0] + 'Z';
+
+    const t_to = new Date(dateTo.value).toISOString().split('.')[0] + 'Z';
+
+
+
+    // 1. Загрузка данных для графика
+
+    try {
+
+        const res = await fetch(`${api}?deviceId=${deviceId}&from=${t_from}&to=${t_to}&type=${type}`, {
+
+            headers: { "x-api-key": API_KEY }
+
+        });
+
+        const data = await res.json();
+
+
+
+        if (!data.items) {
+
+            console.warn("Данные для графика не получены.");
+
+            // Вывод пустого графика
+
+            if (chart) chart.destroy();
+
+            chart = new Chart(chartCanvas, { type: 'line', data: { labels: [], datasets: [] } });
+
+            // Продолжаем к алертам, даже если данные графика не пришли
+
+        } else {
+
+            // ... (Ваш код обработки данных для графика) ...
+
+            const items = data.items.sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+
+
+            const labels = items.map(d => d.timestamp);
+
+            const values = items.map(d => d.val ?? d.value ?? d.motion ?? d.avg_value ?? d.avg_motion ?? d.avg_eye_1 ?? d.avg_eye_2 ?? 0);
+
+
+
+            if (chart) chart.destroy();
+
+
+
+            chart = new Chart(chartCanvas, {
+
+                type: 'line',
+
+                data: {
+
+                    labels: labels,
+
+                    datasets: [{
+
+                        label: type,
+
+                        data: values,
+
+                        borderColor: 'rgb(75, 192, 192)',
+
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+
+                        tension: 0.2,
+
+                    }]
+
+                },
+
+                options: {
+
+                    responsive: true,
+
+                    scales: { x: { display: true }, y: { beginAtZero: true } }
+
+                }
+
+            });
+
+            // ... (Ваш код для CSV) ...
+
+             downloadBtn.onclick = () => {
+
+                const csv = ["timestamp,value"].concat(items.map(d => `${d.timestamp},${d.val ?? d.value ?? d.motion ?? d.avg_value ?? d.avg_motion ?? d.avg_eye_1 ?? d.avg_eye_2 ?? 0}`)).join("\n");
+
+                const blob = new Blob([csv], {type: "text/csv"});
+
+                const url = URL.createObjectURL(blob);
+
+                const a = document.createElement('a');
+
+                a.href = url;
+
+                a.download = `device_${deviceId}_${type}.csv`;
+
+                a.click();
+
+            }
+
+        }
+
+        
+
+    } catch(err) {
+
+        console.error("Ошибка загрузки данных графика:", err);
+
+        alert("Ошибка загрузки данных графика");
+
+    }
+
+    
+
+    // 2. Загрузка алертов (даже если график не загрузился)
+
+    await loadAlerts(deviceId);
+
+}
+
+
+
 // Загрузка по кнопке
+
 loadBtn.addEventListener('click', loadDeviceData);
 
+
+
 // Загружаем сразу при старте
+
 loadDeviceData();
+
 </script>
+
 </body>
+
 </html>

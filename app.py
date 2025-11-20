@@ -11,10 +11,10 @@ DEVICES = [
 ]
 
 # Фейковые сенсорные данные для теста
-FAKE_DATA = []
+DATA = []
 now = datetime.now()
 for i in range(100):
-    FAKE_DATA.append({
+    DATA.append({
         "timestamp": (now - timedelta(minutes=i*10)).strftime("%Y-%m-%dT%H:%M:%S"),
         "sensor_type": "temperature",
         "value": round(random.uniform(20, 30), 2)
@@ -39,7 +39,7 @@ def get_sensors(device_id):
         to_dt = datetime.utcnow()
 
     data = [
-        d for d in FAKE_DATA
+        d for d in DATA
         if d["sensor_type"] == mtype and from_dt <= datetime.fromisoformat(d["timestamp"]) <= to_dt
     ]
 
